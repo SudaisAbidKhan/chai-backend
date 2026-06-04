@@ -26,6 +26,15 @@ const getAllVideos = asyncHandler(async (req, res) => {
         localField: "owner",
         foreignField: "_id",
         as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              fullName: 1,
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
       },
     },
     {
@@ -84,7 +93,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
   });
 
   if (!video) {
-    throw new ApiError(500, "Something went wrong while registering the user");
+    throw new ApiError(500, "Something went wrong while uploading the video");
   }
 
   return res
@@ -96,7 +105,33 @@ const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   //TODO: get video by id
 
-  const video = await Video.findById(videoId);
+  // const video = await Video.findById(videoId);
+
+  const video = await Video.aggregate([
+    {
+      $match: {
+        isPublished: true,
+        // ...(userId && { owner: new mongoose.Types.ObjectId(userId) }),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "ownerDetails",
+        pipeline: [
+          {
+            $project: {
+              fullName: 1,
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+  ]);
 
   if (!video) {
     throw new ApiError(400, "Not Found");
@@ -191,17 +226,15 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     videoId,
     {
       $set: {
-        isPublished: !existingVideo.isPublished
+        isPublished: !existingVideo.isPublished,
       },
     },
     { new: true }
-  )
-
+  );
 
   return res
     .status(201)
     .json(new ApiResponse(200, video, "Video Publish status changed"));
-
 });
 
 export {
